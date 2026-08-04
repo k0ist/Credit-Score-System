@@ -22,7 +22,7 @@
 - `Month`, `Credit_History_Age`
 - `Credit_Score` — целевая переменная (`Good` / `Standard` / `Poor`)
 
-Похоже на датасет [Credit Score Classification с Kaggle](https://www.kaggle.com/datasets/parisrohan/credit-score-classification).
+Датасет - [Credit Score Classification с Kaggle](https://www.kaggle.com/datasets/parisrohan/credit-score-classification).
 
 ## Этапы
 
@@ -93,6 +93,93 @@ NPL после отсечения худшего дециля (10% самых р
 Ожидаемые потери после отсечения худшего дециля: 1463.2 млн руб/год
 Потенциальная экономия резервов: 377.9 млн руб/год
 
+🐳 Docker & FastAPI Скоринговый Сервис
+
+Модель CatBoost упакована в микросервис на FastAPI (main.py) и полностью контейнеризована.
+
+API Эндпоинты
+
+GET /health — проверка состояния сервиса и подтверждение загрузки модели в RAM.
+
+POST /predict — принимается JSON с 23 признаками заёмщика, возвращается $PD$-скор, предсказанный класс (Good, Standard, Poor) и флаг высокого риска high_risk_decile (при $PD \ge 0.70$).
+
+POST /reload-model — горячая перезагрузка файла модели из Docker Volume прямо в RAM без перезапуска контейнера.
+
+Сценарии обновлений и работы с Docker
+
+Сценарий
+
+Стратегия
+
+Команда / Механизм
+
+Production (Стандарт)
+
+Полная пересборка образа
+
+docker compose up -d --build
+
+Development
+
+Hot Reload кода и модели
+
+Bind Mount (-v .:/app) + uvicorn --reload
+
+Динамическое обновление ML-модели
+
+Docker External Volume + API Reload
+
+Перезапись model/catboost_model.cbm $\rightarrow$ POST /reload-model
+
+Запуск в Production режиме:
+
+# Сборка и фоновый запуск через Docker Compose
+docker compose up -d --build
+
+
+Ручной запуск контейнера Docker:
+
+# 1. Сборка образа
+docker build -t credit-score-api:v1 .
+
+# 2. Запуск контейнера с монтированием директории моделей
+docker run -d \
+  -p 8000:8000 \
+  -v $(pwd)/model:/app/model \
+  --name credit-app credit-score-api:v1
+
+
+Проверка работы через curl:
+
+curl -X 'POST' \
+  'http://localhost:8000/predict' \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "Month": "March",
+    "Age": 32,
+    "Occupation": "Scientist",
+    "Annual_Income": 45000,
+    "Monthly_Inhand_Salary": 3200,
+    "Num_Bank_Accounts": 3,
+    "Num_Credit_Card": 4,
+    "Interest_Rate": 14,
+    "Num_of_Loan": 2,
+    "Type_of_Loan": "Auto Loan, Personal Loan",
+    "Delay_from_due_date": 8,
+    "Num_of_Delayed_Payment": 3,
+    "Changed_Credit_Limit": 5.5,
+    "Num_Credit_Inquiries": 2,
+    "Credit_Mix": "Good",
+    "Outstanding_Debt": 1200.0,
+    "Credit_Utilization_Ratio": 32.1,
+    "Credit_History_Age": "5 Years and 3 Months",
+    "Payment_of_Min_Amount": "No",
+    "Total_EMI_per_month": 150.0,
+    "Amount_invested_monthly": 100.0,
+    "Payment_Behaviour": "High_spent_Small_value_payments",
+    "Monthly_Balance": 250.0
+  }'
+
 
 
 ## Установка
@@ -124,5 +211,5 @@ pip install -r requirements.txt
 ## Немного нюансов
 
 - Метрика везде F1-macro — она не даёт "большим" классам перевешивать редкие.
-- Баланс классов: у RF через `class_weight`, у CatBoost — через oversampling.
+- Баланс классов: у RandomForest через `class_weight`, у CatBoost — через oversampling.
 - Подбор гиперпараметров идёт на подвыборке ради скорости, финальное обучение — уже на всех данных.
