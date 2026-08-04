@@ -93,63 +93,32 @@ NPL после отсечения худшего дециля (10% самых р
 Ожидаемые потери после отсечения худшего дециля: 1463.2 млн руб/год
 Потенциальная экономия резервов: 377.9 млн руб/год
 
-🐳 Docker & FastAPI Скоринговый Сервис
+## 🛠️ Архитектура API и Docker
 
-Модель CatBoost упакована в микросервис на FastAPI (main.py) и полностью контейнеризована.
+Приложение обёрнуто в FastAPI и поставляется в виде Docker-контейнера.
 
-API Эндпоинты
+### Основные эндпоинты:
+* `GET /health` — проверка статуса сервиса и загрузки модели.
+* `POST /predict` — расчет вероятности дефолта (`pd_score`), итогового класса и флага высокого риска (`high_risk_decile`).
+* `POST /reload-model` — горячая перезагрузка весов `.cbm` без перезапуска Docker-контейнера.
 
-GET /health — проверка состояния сервиса и подтверждение загрузки модели в RAM.
+---
 
-POST /predict — принимается JSON с 23 признаками заёмщика, возвращается $PD$-скор, предсказанный класс (Good, Standard, Poor) и флаг высокого риска high_risk_decile (при $PD \ge 0.70$).
+## 🚦 Быстрый запуск
 
-POST /reload-model — горячая перезагрузка файла модели из Docker Volume прямо в RAM без перезапуска контейнера.
+### Запуск через Docker 
 
-Сценарии обновлений и работы с Docker
+**Сборка образa:**
+   ```bash
+   docker build -t credit-score-api .
 
-Сценарий
-
-Стратегия
-
-Команда / Механизм
-
-Production (Стандарт)
-
-Полная пересборка образа
-
-docker compose up -d --build
-
-Development
-
-Hot Reload кода и модели
-
-Bind Mount (-v .:/app) + uvicorn --reload
-
-Динамическое обновление ML-модели
-
-Docker External Volume + API Reload
-
-Перезапись model/catboost_model.cbm $\rightarrow$ POST /reload-model
-
-Запуск в Production режиме:
-
-# Сборка и фоновый запуск через Docker Compose
-docker compose up -d --build
-
-
-Ручной запуск контейнера Docker:
-
-# 1. Сборка образа
-docker build -t credit-score-api:v1 .
-
-# 2. Запуск контейнера с монтированием директории моделей
-docker run -d \
-  -p 8000:8000 \
-  -v $(pwd)/model:/app/model \
-  --name credit-app credit-score-api:v1
-
-
-Проверка работы через curl:
+   docker run -d \
+   --name credit_api \
+   -p 8000:8000 \
+   -v $(pwd)/model:/app/model \
+   credit-score-api
+  ```
+## Проверка работы через curl:
 
 curl -X 'POST' \
   'http://localhost:8000/predict' \
