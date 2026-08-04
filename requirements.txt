@@ -1,9 +1,5 @@
-pandas
-numpy
-matplotlib
-seaborn
-scipy
-scikit-learn
-imbalanced-learn
-catboost
-optuna
+fastapi==0.115.0
+uvicorn[standard]==0.30.6
+catboost==1.2.7
+pydantic==2.9.2
+numpy==1.26.4
